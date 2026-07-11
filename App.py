@@ -1,81 +1,90 @@
+# app.py
 import streamlit as st
 import tempfile
-from video_engine import process_video_ultra
+import os
 
-st.set_page_config(page_title="CapCut Pro Kurdish", layout="wide")
+# هێنانی مۆدیوڵەکانی خۆمان کە دروستمان کردن
+from modules.custom_css import load_custom_css
+from modules.ui_components import (
+    render_top_bar, 
+    render_timeline, 
+    render_bottom_toolbar,
+    initialize_session_state
+)
 
-# CSS بۆ دیزاینی "تایملەینی مۆبایل"
-st.markdown("""
-    <style>
-    .stButton>button { border-radius: 20px; background-color: #333; color: white; border: 1px solid #555; }
-    .stButton>button:hover { background-color: #ffcc00; color: black; }
-    .track-box { padding: 15px; border-radius: 10px; margin: 10px 0; font-weight: bold; }
-    .video-track { background: linear-gradient(90deg, #1e3a8a, #3b82f6); color: white; }
-    .audio-track { background: linear-gradient(90deg, #064e3b, #10b981); color: white; }
-    .sub-track { background: linear-gradient(90deg, #78350f, #f59e0b); color: white; }
-    </style>
-""", unsafe_allow_html=True)
+# ڕێکخستنی شاشەی ستریملیت بۆ ئەوەی پڕبێت (Wide)
+st.set_page_config(
+    page_title="Pro Video Editor - AI Studio",
+    page_icon="🎬",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-st.title("🎬 AI Video Studio (CapCut Style)")
+# ١. بارکردنی دیزاینە تاریکەکە وەک وێنەکە
+load_custom_css()
 
-# بەشی سەرەوە: ڤیدیۆ و فایلەکان
-col_preview, col_tools = st.columns([1.5, 1])
+# ٢. ئامادەکردنی Session State بۆ هەڵگرتنی داتاکان
+initialize_session_state()
 
-with col_preview:
-    video_input = st.file_uploader("📥 ڤیدیۆ ئەپڵۆد بکە", type=["mp4", "mov"])
-    if video_input:
-        st.video(video_input)
-    else:
-        st.image("https://via.placeholder.com/800x450.png?text=Preview+Screen", use_column_width=True)
+# ٣. نیشاندانی شریتی سەرەوە (Top Bar)
+render_top_bar()
 
-with col_tools:
-    st.subheader("🛠️ Tools & Assets")
-    with st.expander("📝 Subtitles & Text"):
-        sub_input = st.file_uploader("فایلی ژێرنووس")
-        sub_pos = st.radio("شوێنی دەق:", ["Bottom", "Middle", "Top"])
-        f_size = st.slider("قەبارەی فۆنت", 10, 60, 24)
-        f_color = st.color_picker("ڕەنگی دەق", "#FFFFFF")
+# ٤. دابەشکردنی شاشەکە بۆ بەشی پلەیەر و بەشی بارکردنی فایلەکان
+col_player, col_settings = st.columns([7, 3])
 
-    with st.expander("🎵 Audio & Music"):
-        music_input = st.file_uploader("میوزیکی پشتخلفێنە", type=["mp3", "wav"])
-        volume_lvl = st.slider("دەنگی ڤیدیۆکە (Volume)", 0.0, 3.0, 1.0)
-
-    with st.expander("🎨 Filters & Effects"):
-        v_filter = st.selectbox("فلتەری وێنە:", ["None", "Black & White", "Blur"])
-        logo_input = st.file_uploader("دانانی لۆگۆ (Overlay)")
-
-# بەشی خوارەوە: Timeline
-st.divider()
-st.subheader("🎞️ Timeline Workspace")
-
-if video_input:
-    # پیشاندانی تراکەکان بە ستایل
-    st.markdown('<div class="track-box video-track">🎬 Video Track (Main)</div>', unsafe_allow_html=True)
-    if sub_input:
-        st.markdown('<div class="track-box sub-track">📝 Subtitle Track (Active)</div>', unsafe_allow_html=True)
-    if music_input:
-        st.markdown('<div class="track-box audio-track">🎵 Music Track (Layered)</div>', unsafe_allow_html=True)
-
-    # Trim Slider
-    trim_vals = st.slider("بڕینی ڤیدیۆ (Trim Range):", 0.0, 300.0, (0.0, 300.0))
+with col_settings:
+    st.markdown("### 📂 ئامرازەکانی پڕۆژە")
     
-    # Metadata
-    st.text_input("ناوی ستۆدیۆ (Metadata):", value="My Pro Studio", key="s_name")
+    # ئامادەکاری بۆ پشتیوانی کردنی هەم SRT و هەم ASS زۆر بە پرۆفیشناڵی
+    uploaded_video = st.file_uploader("📥 ڤیدیۆ دابنێ (MP4, MKV, MOV)", type=["mp4", "mkv", "mov"])
+    uploaded_sub = st.file_uploader("📝 ژێرنووس دابنێ (SRT, ASS)", type=["srt", "ass"])
+    
+    if uploaded_video is not None:
+        st.session_state.video_file = uploaded_video
+        st.success("ڤیدیۆ بە سەرکەوتوویی بارکرا! ✅")
+        
+    st.markdown("---")
+    st.markdown("### ⚙️ ڕێکخستنی ژێرنووس")
+    if st.session_state.video_file:
+        font_style = st.selectbox("شێوازی فۆنت:", ["Kurdish Default", "Arial", "Bold Shadow"])
+        sub_color = st.color_picker("ڕەنگی ژێرنووس:", "#FFFFFF")
+        sub_size = st.slider("قەبارەی فۆنت:", 10, 72, 28)
+    else:
+        st.info("تکایە سەرەتا ڤیدیۆیەک باربکە بۆ بینینی ڕێکخستنەکان.")
 
-    # Export Button
-    if st.button("🚀 EXPORT NOW (دەرهێنان)", use_container_width=True):
-        with st.spinner("خەریکی تێکەڵکردنی هەموو تراکەکانین..."):
-            with tempfile.TemporaryDirectory() as temp_dir:
-                settings = {
-                    'start': trim_vals[0], 'end': trim_vals[1],
-                    'filter': v_filter, 'sub_pos': sub_pos,
-                    'f_size': f_size, 'f_color': f_color,
-                    'volume': volume_lvl, 'studio_name': st.session_state.s_name
-                }
-                output = process_video_ultra(temp_dir, video_input, sub_input, logo_input, music_input, settings)
-                
-                st.success("تەواو بوو!")
-                with open(output, "rb") as f:
-                    st.download_button("📥 داگرتنی ڤیدیۆ مۆنتاژکراوەکە", f, file_name="Studio_Master.mp4", use_container_width=True)
-else:
-    st.info("تکایە ڤیدیۆیەک دابنێ بۆ ئەوەی تایملەینەکە چالاک بێت.")
+with col_player:
+    # نیشاندانی پلەیەر (Preview Window)
+    if st.session_state.video_file is not None:
+        # ئەگەر ڤیدیۆ هەبوو، نیشانی بدە
+        st.video(st.session_state.video_file)
+    else:
+        # ئەگەر ڤیدیۆ نەبوو، شاشەیەکی ڕەش نیشان بدە وەک ڕووکاری سەرەتایی
+        st.markdown("""
+        <div class="video-container" style="height: 400px; border: 1px solid #333;">
+            <div style="text-align: center; color: #555;">
+                <h1 style="color: #444;">🎬</h1>
+                <p>هیچ ڤیدیۆیەک نییە بۆ نیشاندان</p>
+                <p style="font-size: 12px;">لە لای ڕاستەوە ڤیدیۆیەک باربکە</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ٥. نیشاندانی Timeline درێک وەک وێنەکە
+st.markdown("<br>", unsafe_allow_html=True)
+render_timeline(
+    video_duration=st.session_state.video_duration,
+    current_time=st.session_state.current_time,
+    subtitles=st.session_state.project_subtitles
+)
+
+# ٦. نیشاندانی تووڵامرازەکانی خوارەوە (Bottom Tools)
+render_bottom_toolbar()
+
+# تێبینی شاراوە بۆ بەکارهێنەر (بۆ پەرەپێدەر)
+st.sidebar.markdown("""
+### پشکنینی پڕۆژە
+ئەمە **پارتی یەکەمە** لە پڕۆژەکە.
+- ڕووکارەکە ڕێک وەک وێنەکەی CapCut/VN لێکراوە.
+- Timeline بۆتە فرە-تراک (Multi-track).
+- ئامادەیە بۆ وەرگرتنی پێشکەوتووی SRT و ASS.
+""")
