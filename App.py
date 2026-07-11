@@ -1,87 +1,110 @@
 import streamlit as st
-import subprocess
-import os
 import tempfile
+import os
+# لێرەدا فایلی ماتۆڕەکەمان (video_engine.py) بانگ دەکەین
+from video_engine import process_video_advanced
 
-st.set_page_config(page_title="AI Video Tech Studio", page_icon="🎬", layout="centered")
+st.set_page_config(page_title="Pro Video Editor", page_icon="✂️", layout="wide")
 
-st.title("🎬 AI Video Tech & Hardcode Studio")
-st.markdown("ڤیدیۆ و فایلی ASS یان SRT لێرە دابنێ (بەبێ هیچ سنوورێک):")
-st.divider()
+st.title("✂️ Pro Video Studio (VN & Subtitle Edit Style)")
+st.markdown("بەخێربێیت بۆ ستۆدیۆی پڕۆفیشناڵ. کارەکانت بەپێی ئەم تابلۆیانەی (Tabs) خوارەوە جێبەجێ بکە.")
 
-st.sidebar.header("⚙️ ڕێکخستنی تەکنیکی")
-video_resolution = st.sidebar.selectbox("قەبارەی شاشە (Resolution):", ["وەک خۆی بمێنێتەوە", "1080p", "720p", "480p"])
-quality = st.sidebar.selectbox("کواڵێتی ڤیدیۆ (CRF):", ["بەرز (18)", "مامناوەند (23)", "نزم (28)"], index=1)
-preset = st.sidebar.selectbox("خێرایی ڕەندەر (Preset):", ["fast", "veryfast", "medium"])
+# دروستکردنی تابلۆی (Tabs) وەکو بەرنامەکانی مۆنتاژ
+tab_media, tab_subtitles, tab_export = st.tabs(["١. میدیا و ڤیدیۆ 🎬", "٢. ژێرنووس و لۆگۆ 📝", "٣. ڕەندەرکردن 🚀"])
 
-st.sidebar.subheader("ستایلی ژێرنووس (تەنها بۆ SRT)")
-st.sidebar.caption("ئەگەر ASS بێت ستایلە ڕەسەنەکەی خۆی وەردەگرێت.")
-font_size = st.sidebar.slider("قەبارەی فۆنت:", 10, 50, 24)
-font_color = st.sidebar.color_picker("ڕەنگی فۆنت:", "#FFFFFF")
-ffmpeg_color = f"&H00{font_color[5:7]}{font_color[3:5]}{font_color[1:3]}&"
+# ==============================
+# تابلۆی یەکەم: ڤیدیۆ و پێشاندان
+# ==============================
+with tab_media:
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.subheader("📥 دانانی ڤیدیۆ")
+        uploaded_video = st.file_uploader("ڤیدیۆکەت لێرە دابنێ:", key="video")
+        
+        st.subheader("⚙️ ڕێکخستنی ڤیدیۆ")
+        video_resolution = st.selectbox("قەبارەی شاشە (Resolution):", ["وەک خۆی", "1080p", "720p", "480p"])
+        
+    with col2:
+        st.subheader("📺 شاشەی بینین (Preview)")
+        if uploaded_video:
+            # کاتێک ڤیدیۆکە دادەنرێت، لێرە پیشان دەدرێت
+            st.video(uploaded_video)
+        else:
+            st.info("ڤیدیۆیەک دابنێ بۆ ئەوەی لێرە بیبینیت.")
 
-# ===============================================
-# کێشەی نەناسینەوە لێرە چارەسەر کرا! (بێ سنوور)
-# ===============================================
-st.subheader("📥 ١. دانانی فایلەکان")
-uploaded_video = st.file_uploader("ڤیدیۆکەت لێرە دابنێ:") 
-st.write("") 
-uploaded_sub = st.file_uploader("فایلی ژێرنووس لێرە دابنێ (ASS یان SRT):") 
-st.divider()
+# ==============================
+# تابلۆی دووەم: ژێرنووس و لۆگۆ
+# ==============================
+with tab_subtitles:
+    col_sub, col_logo = st.columns([1, 1])
+    
+    with col_sub:
+        st.subheader("📝 ژێرنووس (Subtitle Edit)")
+        uploaded_sub = st.file_uploader("فایلی ژێرنووس دابنێ (ASS یان SRT):", key="sub")
+        st.caption("ڕێکخستنی ستایلی ژێرنووس (تەنها بۆ فایلی SRT):")
+        font_size = st.slider("قەبارەی فۆنت:", 10, 50, 24)
+        font_color = st.color_picker("ڕەنگی فۆنت:", "#FFFFFF")
+        
+    with col_logo:
+        st.subheader("✨ دانانی لۆگۆ (Watermark)")
+        st.info("دەتوانیت لۆگۆی کەناڵەکەت یان پەیجەکەت بخەیتە سەر ڤیدیۆکە.")
+        uploaded_logo = st.file_uploader("لۆگۆیەک هەڵبژێرە (PNG پەسەندە):", type=["png", "jpg", "jpeg"], key="logo")
+        if uploaded_logo:
+            st.image(uploaded_logo, width=150, caption="لۆگۆی هەڵبژێردراو")
 
-if st.button("🚀 دەستپێکردنی مۆنتاژ", use_container_width=True):
-    if uploaded_video and uploaded_sub:
-        with st.spinner("⏳ خەریکی ڕەندەرکردنین... تکایە چاوەڕێ بە!"):
-            with tempfile.TemporaryDirectory() as temp_dir:
-                
-                video_ext = uploaded_video.name.split('.')[-1].lower()
-                sub_ext = uploaded_sub.name.split('.')[-1].lower()
-                
-                video_filename = f"input_video.{video_ext}"
-                sub_filename = f"input_sub.{sub_ext}"
-                output_filename = "output_video.mp4"
-                
-                video_path = os.path.join(temp_dir, video_filename)
-                sub_path = os.path.join(temp_dir, sub_filename)
-                output_path = os.path.join(temp_dir, output_filename)
-                
-                with open(video_path, "wb") as f:
-                    f.write(uploaded_video.read())
-                with open(sub_path, "wb") as f:
-                    f.write(uploaded_sub.read())
+# ==============================
+# تابلۆی سێیەم: ڕەندەر و دەرهێنان
+# ==============================
+with tab_export:
+    st.subheader("🚀 ڕەندەرکردنی کۆتایی (Export)")
+    
+    col_set1, col_set2 = st.columns(2)
+    with col_set1:
+        quality = st.selectbox("کواڵێتی ڤیدیۆ (CRF):", ["بەرز (18)", "مامناوەند (23)", "نزم (28)"], index=1)
+    with col_set2:
+        preset = st.selectbox("خێرایی ڕەندەر:", ["fast", "veryfast", "medium"])
+        
+    st.divider()
+    
+    if st.button("🔥 دەستپێکردنی مۆنتاژ و دروستکردنی ڤیدیۆ", use_container_width=True, type="primary"):
+        if uploaded_video:
+            with st.spinner("⏳ خەریکی مۆنتاژکردنین... (تکایە لەم پەڕەیە مەچۆرە دەرەوە)"):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    crf_val = quality.split("(")[1].replace(")", "")
+                    preset_val = preset.split()[0]
+                    res_val = video_resolution.split()[0] if video_resolution != "وەک خۆی" else "Original"
 
-                filters = []
-                if "1080p" in video_resolution: filters.append("scale=-2:1080")
-                elif "720p" in video_resolution: filters.append("scale=-2:720")
-                elif "480p" in video_resolution: filters.append("scale=-2:480")
-                
-                # فلتەری ژێرنووس کە هەم SRT و هەم ASS بە نایابی دەخوێنێتەوە
-                if sub_ext == "ass":
-                    filters.append(f"subtitles='{sub_filename}'")
-                else:
-                    filters.append(f"subtitles='{sub_filename}':force_style='FontSize={font_size},PrimaryColour={ffmpeg_color},MarginV=20'")
-                
-                vf_command = ",".join(filters)
-                crf_val = quality.split("(")[1].replace(")", "")
-
-                cmd = [
-                    'ffmpeg', '-i', video_filename,
-                    '-vf', vf_command,               
-                    '-c:v', 'libx264',               
-                    '-crf', crf_val,                 
-                    '-preset', preset.split()[0],           
-                    '-c:a', 'aac', '-b:a', '128k',   
-                    '-y', output_filename                
-                ]
-
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True, text=True, cwd=temp_dir)
-                    st.success("✅ پڕۆسەکە سەرکەوتوو بوو!")
-                    st.balloons()
-                    with open(output_path, "rb") as f:
-                        st.download_button("📥 داگرتنی ڤیدیۆکە", f, file_name="AI_Studio_Output.mp4", mime="video/mp4", use_container_width=True)
-                except subprocess.CalledProcessError as e:
-                    st.error("❌ هەڵەیەک ڕوویدا لە کاتی ڕەندەرکردندا.")
-                    with st.expander("بۆ بینینی هەڵەی تەکنیکی لێرە کلیک بکە"): st.code(e.stderr)
-    else:
-        st.warning("⚠️ تکایە هەردوو فایلەکە دابنێ.")
+                    try:
+                        # بانگکردنی ماتۆڕەکە لە فایلی دووەمەوە
+                        final_video_path = process_video_advanced(
+                            temp_dir=temp_dir,
+                            video_file=uploaded_video,
+                            sub_file=uploaded_sub,
+                            logo_file=uploaded_logo,
+                            resolution=res_val,
+                            crf=crf_val,
+                            preset=preset_val,
+                            font_size=font_size,
+                            font_color=font_color
+                        )
+                        
+                        st.success("✅ ڤیدیۆکەت ئامادەیە!")
+                        st.balloons()
+                        
+                        # نیشاندانی دوگمەی داگرتن و پەخشکردنی ڤیدیۆ نوێیەکە
+                        with open(final_video_path, "rb") as f:
+                            st.download_button(
+                                label="📥 داگرتنی ڤیدیۆی کۆتایی",
+                                data=f,
+                                file_name="Pro_Studio_Export.mp4",
+                                mime="video/mp4",
+                                use_container_width=True
+                            )
+                            st.video(final_video_path) # پێشاندانی ڤیدیۆ دروستکراوەکە!
+                            
+                    except Exception as e:
+                        st.error("❌ هەڵەیەک ڕوویدا لە کاتی ڕەندەرکردن.")
+                        with st.expander("بۆ بینینی هەڵەکە کلیک بکە"): st.code(e)
+        else:
+            st.warning("⚠️ تکایە سەرەتا لە تابلۆی یەکەم ڤیدیۆیەک دابنێ!")
