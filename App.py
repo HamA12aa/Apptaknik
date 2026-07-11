@@ -3,68 +3,132 @@ import subprocess
 import os
 import tempfile
 
-# ستایلی لاپەڕە
-st.set_page_config(page_title="AI Video Tech Studio", page_icon="🎬", layout="centered")
+# ١. ڕێکخستنی لاپەڕە (دیزاینی پڕۆفیشناڵ)
+st.set_page_config(page_title="AI Video Tech Studio", page_icon="🎬", layout="wide")
 
+# ٢. ناونیشان و پێشەکی
 st.title("🎬 AI Video Tech & Hardcode Studio")
-st.write("ڤیدیۆ و ژێرنووسەکەت لێرە لێک بدە بە شێوەیەکی پڕۆفیشناڵ")
+st.markdown("بەخێربێیت بۆ ستۆدیۆی زیرەکی مۆنتاژ. لێرە دەتوانیت ڤیدیۆکانت لەگەڵ ژێرنووس لێک بدەیت (Hardcode)، قەبارەکەیان بچووک بکەیتەوە، و ستایلیان پێ بدەیت.")
+st.divider()
 
-# بەشی بەرزکردنەوەی فایلەکان
-uploaded_video = st.file_uploader("ڤیدیۆکە لێرە دابنێ (MP4, MOV, AVI)", type=["mp4", "mov", "avi"])
-uploaded_srt = st.file_uploader("فایلی ژێرنووس لێرە دابنێ (SRT)", type=["srt"])
+# ٣. بەشی لایەنی (Sidebar) بۆ ڕێکخستنە تەکنیکییەکان
+st.sidebar.header("⚙️ ڕێکخستنی ڤیدیۆ و تەکنیک")
 
-# ڕێکخستنی تەکنیکی (Settings)
-st.sidebar.header("⚙️ ڕێکخستنی تەکنیکی")
-quality = st.sidebar.selectbox("کواڵێتی ڤیدیۆ:", ["High (18)", "Medium (24)", "Low (30)"])
-font_size = st.sidebar.slider("قەبارەی فۆنتی ژێرنووس:", 10, 40, 20)
-font_color = st.sidebar.color_picker("ڕەنگی ژێرنووس:", "#FFFFFF")
+# -- ڕێکخستنی قەبارە و کواڵێتی (Compression) --
+st.sidebar.subheader("١. بچووککردنەوە و کواڵێتی")
+video_resolution = st.sidebar.selectbox(
+    "قەبارەی شاشە (Resolution):", 
+    ["وەک خۆی بمێنێتەوە", "1080p (FHD)", "720p (HD - سووک)", "480p (SD - زۆر سووک)"]
+)
+quality = st.sidebar.selectbox(
+    "کواڵێتی ڤیدیۆ (CRF):", 
+    ["بەرز - قەبارەی گەورە (18)", "مامناوەند - باڵانس (23)", "نزم - قەبارەی بچووک (28)"],
+    index=1
+)
+preset = st.sidebar.selectbox(
+    "خێرایی ڕەندەر (Preset):", 
+    ["fast (خێرا)", "veryfast (زۆر خێرا)", "medium (ئاسایی)"],
+    help="ئەگەر فایلی ڤیدیۆکە گەورەیە، 'veryfast' هەڵبژێرە بۆ ئەوەی خێرا تەواو بێت."
+)
 
-# گۆڕینی ڕەنگ بۆ فۆرماتی FFmpeg (Hex to FFmpeg)
-ffmpeg_color = f"&H{font_color[5:7]}{font_color[3:5]}{font_color[1:3]}&"
+# -- ڕێکخستنی ستایلی ژێرنووس --
+st.sidebar.subheader("٢. ستایلی ژێرنووس (تەنها بۆ SRT)")
+st.sidebar.caption("تێبینی: فایلی ASS ستایلەکەی لەناو خۆیدایە و پێویستی بەمە نییە.")
+font_size = st.sidebar.slider("قەبارەی فۆنت:", 10, 50, 24)
+font_color = st.sidebar.color_picker("ڕەنگی فۆنت:", "#FFFFFF")
 
-if st.button("🚀 دەستپێکردنی پڕۆسەی ڕەندەرکردن"):
-    if uploaded_video and uploaded_srt:
-        with st.spinner("خەریکی لکاندنی ژێرنووس و تەکنیککردنی ڤیدیۆکەین... تکایە چاوەڕێبە"):
+# گۆڕینی ڕەنگی Hex بۆ فۆرماتی FFmpeg کە بەشێوەی (&HBBGGRR&)ـە
+ffmpeg_color = f"&H00{font_color[5:7]}{font_color[3:5]}{font_color[1:3]}&"
+
+# ٤. بەشی سەرەکی بۆ بەرزکردنەوەی فایلەکان
+col1, col2 = st.columns(2)
+with col1:
+    uploaded_video = st.file_uploader("📥 ڤیدیۆکە لێرە دابنێ (MP4, MKV, MOV, AVI)", type=["mp4", "mkv", "mov", "avi"])
+with col2:
+    uploaded_sub = st.file_uploader("📝 فایلی ژێرنووس دابنێ (SRT یان ASS)", type=["srt", "ass"])
+
+st.divider()
+
+# ٥. پڕۆسەی مۆنتاژ و ڕەندەرکردن
+if st.button("🚀 دەستپێکردنی مۆنتاژ و ڕەندەر", use_container_width=True):
+    if uploaded_video and uploaded_sub:
+        with st.spinner("⏳ خەریکی ڕەندەرکردن و لکاندنی ژێرنووسین... لەوانەیە چەند خولەکێک بخایەنێت!"):
             
-            # دروستکردنی فۆڵدەری کاتی بۆ فایلەکان
+            # دروستکردنی فۆڵدەری کاتی (Auto-cleanup)
             with tempfile.TemporaryDirectory() as temp_dir:
-                video_path = os.path.join(temp_dir, "input_video.mp4")
-                srt_path = os.path.join(temp_dir, "input_sub.srt")
+                # وەرگرتنی جۆری فایلەکان
+                video_ext = uploaded_video.name.split('.')[-1]
+                sub_ext = uploaded_sub.name.split('.')[-1].lower()
+                
+                video_path = os.path.join(temp_dir, f"input_video.{video_ext}")
+                sub_path = os.path.join(temp_dir, f"input_sub.{sub_ext}")
                 output_path = os.path.join(temp_dir, "output_video.mp4")
                 
-                # سەیڤکردنی فایلە ئەسڵییەکان لەناو فۆڵدەرە کاتییەکە
+                # سەیڤکردنی فایلەکان
                 with open(video_path, "wb") as f:
                     f.write(uploaded_video.read())
-                with open(srt_path, "wb") as f:
-                    f.write(uploaded_srt.read())
-                
-                # دیاریکردنی CRF بەپێی کواڵێتی
-                crf_val = quality.split("(")[1].replace(")", "")
+                # بەکارهێنانی decode/encode بۆ ئەوەی دڵنیا بین لەوەی فایلی SRT کێشەی (UTF-8)ی نابێت بۆ زمانی کوردی
+                sub_content = uploaded_sub.read()
+                with open(sub_path, "wb") as f:
+                    f.write(sub_content)
 
-                # فەرمانی FFmpeg (وەک ئەوەی لە ڕێنماییەکەتدا هاتبوو)
-                # تێبینی: بەکارهێنانی رێڕەوی فایلەکان بە شێوەیەک کە FFmpeg لێی تێبگات
+                # پاراستنی ڕێڕەوی فایل بۆ ئەوەی لە هەموو سیستەمێک (بەتایبەت ویندۆز) ئیش بکات
+                safe_sub_path = sub_path.replace("\\", "/").replace(":", "\\:")
+
+                # ئامادەکردنی فلتەرەکانی ڤیدیۆ (Video Filters - vf)
+                filters = []
+                
+                # هەنگاوی ١: بچووککردنەوەی قەبارەی شاشە (Scaling) ئەگەر هەڵبژێردرابوو
+                if "1080p" in video_resolution:
+                    filters.append("scale=-2:1080")
+                elif "720p" in video_resolution:
+                    filters.append("scale=-2:720")
+                elif "480p" in video_resolution:
+                    filters.append("scale=-2:480")
+                
+                # هەنگاوی ٢: لکاندنی ژێرنووسەکە (Hardcode)
+                if sub_ext == "ass":
+                    filters.append(f"subtitles='{safe_sub_path}'")
+                else:
+                    # بۆ SRT ستایلەکان زیاد دەکەین
+                    filters.append(f"subtitles='{safe_sub_path}':force_style='FontSize={font_size},PrimaryColour={ffmpeg_color},MarginV=20'")
+                
+                # تێکەڵکردنی فلتەرەکان
+                vf_command = ",".join(filters)
+                
+                # دەرهێنانی ژمارەی CRF و Preset
+                crf_val = quality.split("(")[1].replace(")", "")
+                preset_val = preset.split()[0]
+
+                # فەرمانی سەرەکی FFmpeg (دڵی پڕۆژەکە)
                 cmd = [
                     'ffmpeg', '-i', video_path,
-                    '-vf', f"subtitles='{srt_path}':force_style='FontSize={font_size},PrimaryColour={ffmpeg_color}'",
-                    '-c:v', 'libx264', '-crf', crf_val, '-preset', 'fast',
-                    '-c:a', 'copy', output_path
+                    '-vf', vf_command,               # فلتەری قەبارە و ژێرنووس
+                    '-c:v', 'libx264',               # کۆدێکی ڤیدیۆ
+                    '-crf', crf_val,                 # کواڵێتی ڤیدیۆ
+                    '-preset', preset_val,           # خێرایی ڕەندەر
+                    '-c:a', 'aac', '-b:a', '128k',   # پەستاندنی دەنگ (Audio Compression) بۆ سووککردنی فایل
+                    '-y', output_path                # سەرنووسینەوە (Overwrite) ئەگەر پێویست بوو
                 ]
 
                 try:
-                    subprocess.run(cmd, check=True)
+                    # ڕەنکردنی فەرمانەکە
+                    process = subprocess.run(cmd, check=True, capture_output=True, text=True)
                     
-                    # نیشاندانی دوگمەی داگرتن
+                    st.success("✅ پڕۆسەکە بە سەرکەوتوویی کۆتایی هات! ڤیدیۆکەت ئامادەیە.")
+                    st.balloons()
+                    
+                    # نیشاندانی دوگمەی داگرتن (Download)
                     with open(output_path, "rb") as f:
-                        st.success("✅ پڕۆسەکە بە سەرکەوتوویی تەواو بوو!")
                         st.download_button(
-                            label="📥 داگرتنی ڤیدیۆ تەکنیککراوەکە",
+                            label="📥 داگرتنی ڤیدیۆ کۆتاییەکە (Download Video)",
                             data=f,
-                            file_name="AI_Studio_Output.mp4",
-                            mime="video/mp4"
+                            file_name="AI_Studio_Masterpiece.mp4",
+                            mime="video/mp4",
+                            use_container_width=True
                         )
-                except Exception as e:
-                    st.error(f"هەڵەیەک ڕوویدا لە کاتی ڕەندەرکردن: {e}")
+                except subprocess.CalledProcessError as e:
+                    st.error("❌ هەڵەیەک ڕوویدا لە کاتی ڕەندەرکردندا. تکایە سەیری کێشەکە بکە لە خوارەوە:")
+                    st.code(e.stderr) # پیشاندانی جۆری هەڵەکە بۆ چارەسەرکردن
     else:
-        st.warning("تکایە دڵنیابەرەوە کە هەردوو فایلی ڤیدیۆ و ژێرنووسەکەت داناوە.")
-
-st.info("ئامۆژگاری: ئەگەر فایلی ڤیدیۆکەت زۆر گەورەیە، لەوانەیە سێرڤەری تاقیکردنەوەی Streamlit کار نەکات. بۆ فایلە گەورەکان پێویستت بە سێرڤەری بەهێزتر دەبێت.")
+        st.warning("⚠️ تکایە دڵنیابەرەوە کە هەم ڤیدیۆکە و هەم ژێرنووسەکەت داناوە پێش ئەوەی دەستپێبکەیت.")
